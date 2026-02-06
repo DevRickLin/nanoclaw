@@ -161,6 +161,15 @@ Everything else (new capabilities, OS compatibility, hardware support, enhanceme
 
 This keeps the base system minimal and lets every user customize their installation without inheriting features they don't want.
 
+## Upstream Attribution
+
+This repository is maintained from the NanoClaw upstream project:
+
+- Upstream source: https://github.com/gavrielc/nanoclaw
+- License: MIT (see `LICENSE`)
+
+Original copyright and license notices are preserved.
+
 ## License
 
 MIT
