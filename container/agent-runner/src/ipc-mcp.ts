@@ -35,14 +35,15 @@ function writeIpcFile(dir: string, data: object): string {
 
 export function createIpcMcp(ctx: IpcMcpContext) {
   const { chatJid, groupFolder, isMain } = ctx;
+  let _sentMessageCount = 0;
 
-  return createSdkMcpServer({
+  const server = createSdkMcpServer({
     name: 'nanoclaw',
     version: '1.0.0',
     tools: [
       tool(
         'send_message',
-        'Send a message to the current WhatsApp group. Use this to proactively share information or updates.',
+        'Send a text message to the current Telegram chat. Use this to proactively share information or updates.',
         {
           text: z.string().describe('The message text to send')
         },
@@ -56,11 +57,40 @@ export function createIpcMcp(ctx: IpcMcpContext) {
           };
 
           const filename = writeIpcFile(MESSAGES_DIR, data);
+          _sentMessageCount++;
 
           return {
             content: [{
               type: 'text',
               text: `Message queued for delivery (${filename})`
+            }]
+          };
+        }
+      ),
+
+      tool(
+        'send_photo',
+        'Send a photo/image to the current Telegram chat. IMPORTANT: The photo MUST be saved under /workspace/group/ (e.g., /workspace/group/screenshot.png). Files in /tmp are NOT accessible to the host. Save your file to /workspace/group/ first, then call this tool.',
+        {
+          photo_path: z.string().describe('Path to the image file (MUST be under /workspace/group/)'),
+          caption: z.string().optional().describe('Optional caption text for the photo')
+        },
+        async (args) => {
+          const data = {
+            type: 'photo',
+            chatJid,
+            photoPath: args.photo_path,
+            caption: args.caption || '',
+            groupFolder,
+            timestamp: new Date().toISOString()
+          };
+
+          const filename = writeIpcFile(MESSAGES_DIR, data);
+
+          return {
+            content: [{
+              type: 'text',
+              text: `Photo queued for delivery (${filename})`
             }]
           };
         }
@@ -279,12 +309,85 @@ SCHEDULE VALUE FORMAT (all times are LOCAL timezone):
       ),
 
       tool(
+        'send_feishu',
+        'Send a message to the configured Feishu/Lark group webhook. Use this to post updates, reports, or notifications to Feishu.',
+        {
+          text: z.string().describe('The message text to send to Feishu'),
+          title: z.string().optional().describe('Optional title for a rich text message')
+        },
+        async (args) => {
+          const data = {
+            type: 'feishu',
+            text: args.text,
+            title: args.title || '',
+            groupFolder,
+            timestamp: new Date().toISOString()
+          };
+
+          const filename = writeIpcFile(MESSAGES_DIR, data);
+
+          return {
+            content: [{
+              type: 'text',
+              text: `Feishu message queued (${filename})`
+            }]
+          };
+        }
+      ),
+
+      tool(
+        'get_balance',
+        'Query the current Moonshot/Kimi API account balance. Returns available balance, cash balance, and voucher balance in CNY.',
+        {},
+        async () => {
+          const apiKey = process.env.ANTHROPIC_API_KEY;
+          if (!apiKey) {
+            return {
+              content: [{ type: 'text', text: 'ANTHROPIC_API_KEY not configured.' }],
+              isError: true
+            };
+          }
+
+          try {
+            const resp = await fetch('https://api.moonshot.cn/v1/users/me/balance', {
+              headers: { 'Authorization': `Bearer ${apiKey}` }
+            });
+            const json = await resp.json() as {
+              code: number;
+              data?: { available_balance: number; cash_balance: number; voucher_balance: number };
+              status: boolean;
+            };
+
+            if (!json.status || !json.data) {
+              return {
+                content: [{ type: 'text', text: `API error: ${JSON.stringify(json)}` }],
+                isError: true
+              };
+            }
+
+            const { available_balance, cash_balance, voucher_balance } = json.data;
+            return {
+              content: [{
+                type: 'text',
+                text: `Moonshot API Balance:\n- Available: ¥${available_balance.toFixed(2)}\n- Cash: ¥${cash_balance.toFixed(2)}\n- Voucher: ¥${voucher_balance.toFixed(2)}`
+              }]
+            };
+          } catch (err) {
+            return {
+              content: [{ type: 'text', text: `Failed to query balance: ${err instanceof Error ? err.message : String(err)}` }],
+              isError: true
+            };
+          }
+        }
+      ),
+
+      tool(
         'register_group',
-        `Register a new WhatsApp group so the agent can respond to messages there. Main group only.
+        `Register a new Telegram group so the agent can respond to messages there. Main group only.
 
 Use available_groups.json to find the JID for a group. The folder name should be lowercase with hyphens (e.g., "family-chat").`,
         {
-          jid: z.string().describe('The WhatsApp JID (e.g., "120363336345536173@g.us")'),
+          jid: z.string().describe('The Telegram JID (e.g., "120363336345536173@g.us")'),
           name: z.string().describe('Display name for the group'),
           folder: z.string().describe('Folder name for group files (lowercase, hyphens, e.g., "family-chat")'),
           trigger: z.string().describe('Trigger word (e.g., "@Andy")')
@@ -317,5 +420,9 @@ Use available_groups.json to find the JID for a group. The folder name should be
         }
       )
     ]
+  });
+
+  return Object.assign(server, {
+    get sentMessageCount() { return _sentMessageCount; }
   });
 }

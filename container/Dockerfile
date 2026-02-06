@@ -23,14 +23,24 @@ RUN apt-get update && apt-get install -y \
     libxshmfence1 \
     curl \
     git \
+    python3 \
+    python3-pip \
+    python3-venv \
     && rm -rf /var/lib/apt/lists/*
+
+# Install uv (Python package manager) and browser-use
+ENV UV_INSTALL_DIR=/usr/local/bin
+ENV UV_TOOL_BIN_DIR=/usr/local/bin
+ENV UV_TOOL_DIR=/opt/uv-tools
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    uv tool install --python-preference managed 'browser-use[cli]'
 
 # Set Chromium path for agent-browser
 ENV AGENT_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 
 # Install agent-browser and claude-code globally
-RUN npm install -g agent-browser @anthropic-ai/claude-code
+RUN npm install -g agent-browser @anthropic-ai/claude-code @playwright/mcp firecrawl-mcp gmail-mcp
 
 # Create app directory
 WORKDIR /app

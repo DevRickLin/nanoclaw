@@ -4,13 +4,13 @@ Personal Claude assistant. See [README.md](README.md) for philosophy and setup. 
 
 ## Quick Context
 
-Single Node.js process that connects to WhatsApp, routes messages to Claude Agent SDK running in Apple Container (Linux VMs). Each group has isolated filesystem and memory.
+Single Node.js process that connects to Telegram (via Telegraf), routes messages to Kimi K2.5 via Claude Agent SDK running in Docker containers. Each group has isolated filesystem and memory.
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| `src/index.ts` | Main app: WhatsApp connection, message routing, IPC |
+| `src/index.ts` | Main app: Telegram connection, message routing, IPC |
 | `src/config.ts` | Trigger pattern, paths, intervals |
 | `src/container-runner.ts` | Spawns agent containers with mounts |
 | `src/task-scheduler.ts` | Runs scheduled tasks |
@@ -37,6 +37,8 @@ npm run build        # Compile TypeScript
 
 Service management:
 ```bash
-launchctl load ~/Library/LaunchAgents/com.nanoclaw.plist
-launchctl unload ~/Library/LaunchAgents/com.nanoclaw.plist
+sudo systemctl start nanoclaw
+sudo systemctl stop nanoclaw
+sudo systemctl restart nanoclaw
+journalctl -u nanoclaw -f   # View logs
 ```

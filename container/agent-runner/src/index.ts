@@ -22,6 +22,7 @@ interface ContainerOutput {
   result: string | null;
   newSessionId?: string;
   error?: string;
+  sentViaIpc?: boolean;
 }
 
 interface SessionEntry {
@@ -189,7 +190,7 @@ function formatTranscriptMarkdown(messages: ParsedMessage[], title?: string | nu
   lines.push('');
 
   for (const msg of messages) {
-    const sender = msg.role === 'user' ? 'User' : 'Andy';
+    const sender = msg.role === 'user' ? 'User' : 'Linx';
     const content = msg.content.length > 2000
       ? msg.content.slice(0, 2000) + '...'
       : msg.content;
@@ -243,13 +244,54 @@ async function main(): Promise<void> {
           'Bash',
           'Read', 'Write', 'Edit', 'Glob', 'Grep',
           'WebSearch', 'WebFetch',
-          'mcp__nanoclaw__*'
+          'mcp__nanoclaw__*',
+          'mcp__browser-use__browser_navigate',
+          'mcp__browser-use__browser_click',
+          'mcp__browser-use__browser_type',
+          'mcp__browser-use__browser_get_state',
+          'mcp__browser-use__browser_extract_content',
+          'mcp__browser-use__browser_scroll',
+          'mcp__browser-use__browser_go_back',
+          'mcp__browser-use__browser_list_tabs',
+          'mcp__browser-use__browser_switch_tab',
+          'mcp__browser-use__browser_close_tab',
+          'mcp__browser-use__browser_list_sessions',
+          'mcp__browser-use__browser_close_session',
+          'mcp__browser-use__browser_close_all',
+          'mcp__firecrawl__*',
+          'mcp__gmail__*'
         ],
         permissionMode: 'bypassPermissions',
         allowDangerouslySkipPermissions: true,
         settingSources: ['project'],
         mcpServers: {
-          nanoclaw: ipcMcp
+          nanoclaw: ipcMcp,
+          firecrawl: {
+            command: 'npx',
+            args: ['-y', 'firecrawl-mcp'],
+            env: {
+              FIRECRAWL_API_KEY: process.env.FIRECRAWL_API_KEY || ''
+            }
+          },
+          gmail: {
+            command: 'npx',
+            args: ['-y', 'gmail-mcp'],
+            env: {
+              GMAIL_CLIENT_ID: process.env.GMAIL_CLIENT_ID || '',
+              GMAIL_CLIENT_SECRET: process.env.GMAIL_CLIENT_SECRET || '',
+              GMAIL_REFRESH_TOKEN: process.env.GMAIL_REFRESH_TOKEN || ''
+            }
+          },
+          'browser-use': {
+            command: 'uvx',
+            args: ['--from', 'browser-use[cli]', 'browser-use', '--mcp'],
+            env: {
+              ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
+              ANTHROPIC_BASE_URL: process.env.ANTHROPIC_BASE_URL || '',
+              BROWSER_USE_HEADLESS: 'true',
+              CHROMIUM_EXECUTABLE_PATH: '/usr/bin/chromium'
+            }
+          }
         },
         hooks: {
           PreCompact: [{ hooks: [createPreCompactHook()] }]
@@ -270,7 +312,8 @@ async function main(): Promise<void> {
     writeOutput({
       status: 'success',
       result,
-      newSessionId
+      newSessionId,
+      sentViaIpc: ipcMcp.sentMessageCount > 0
     });
 
   } catch (err) {
